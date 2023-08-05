@@ -35,39 +35,37 @@ class NRGStreamApi:
         
     def getToken(self):
         try:
-            if self.isTokenValid() == False:                             
-                headers = { }        
+            if self.isTokenValid() == False:                     
+                headers = { }
                 # Connect to API server to get a token
                 conn = http.client.HTTPSConnection(self.server)
                 conn.request('POST', self.tokenPath, self.tokenPayload, headers)
-                res = conn.getresponse()                
+                res = conn.getresponse()
                 res_code = res.code
+                res_data = res.read()
                 # Check if the response is good
-                
+
                 if res_code == 200:
-                    res_data = res.read()
                     # Decode the token into an object
                     jsonData = json.loads(res_data.decode('utf-8'))
-                    self.accessToken = jsonData['access_token']                         
+                    self.accessToken = jsonData['access_token']
                     # Calculate new expiry date
                     self.tokenExpiry = datetime.now() + timedelta(seconds=jsonData['expires_in'])                        
-                    #print('token obtained')
-                    #print(self.accessToken)
+                                #print('token obtained')
+                                #print(self.accessToken)
                 else:
-                    res_data = res.read()
                     print(res_data.decode('utf-8'))
-                conn.close()                          
+                conn.close()
         except Exception as e:
-            print("getToken: " + str(e))
+            print(f"getToken: {str(e)}")
             # Release token if an error occured
             self.releaseToken()      
 
     def releaseToken(self):
-        try:            
-            headers = {}
-            headers['Authorization'] = f'Bearer {self.accessToken}'            
+        try:        
+            headers = {'Authorization': f'Bearer {self.accessToken}'}
             conn = http.client.HTTPSConnection(self.server)
-            conn.request('DELETE', self.releasePath, None, headers)  
+            conn.request('DELETE', self.releasePath, None, headers)
             res = conn.getresponse()
             res_code = res.code
             if res_code == 200:   
@@ -75,10 +73,10 @@ class NRGStreamApi:
                 self.tokenExpiry = datetime.now() - timedelta(seconds=60)
                 #print('token released')            
         except Exception as e:
-            print("releaseToken: " + str(e))
+            print(f"releaseToken: {str(e)}")
                     
     def isTokenValid(self):
-        if self.tokenExpiry==None:
+        if self.tokenExpiry is None:
             return False
         elif datetime.now() >= self.tokenExpiry:            
             return False
@@ -86,16 +84,13 @@ class NRGStreamApi:
             return True            
     
     def GetStreamDataByStreamId(self,streamIds, fromDate, toDate, dataFormat='csv', dataOption=''):
-        stream_data = "" 
-        # Set file format to csv or json            
-        DataFormats = {}
-        DataFormats['csv'] = 'text/csv'
-        DataFormats['json'] = 'Application/json'
-        
-        try:                            
-            for streamId in streamIds:            
+        stream_data = ""
+        # Set file format to csv or json
+        DataFormats = {'csv': 'text/csv', 'json': 'Application/json'}
+        try:                        
+            for streamId in streamIds:    
                 # Get an access token            
-                self.getToken()    
+                self.getToken()
                 if self.isTokenValid():
                     # Setup the path for data request. Pass dates in via function call
                     path = f'/api/StreamData/{streamId}'
@@ -106,17 +101,17 @@ class NRGStreamApi:
                             path += f'&dataOption={dataOption}'        
                         else:
                             path += f'?dataOption={dataOption}'        
-                    
+
                     # Create request header
-                    headers = {}            
-                    headers['Accept'] = DataFormats[dataFormat]
-                    headers['Authorization']= f'Bearer {self.accessToken}'
-                    
+                    headers = {
+                        'Accept': DataFormats[dataFormat],
+                        'Authorization': f'Bearer {self.accessToken}',
+                    }
                     # Connect to API server
                     conn = http.client.HTTPSConnection(self.server)
                     conn.request('GET', path, None, headers)
-                    res = conn.getresponse()        
-                    res_code = res.code                    
+                    res = conn.getresponse()
+                    res_code = res.code
                     if res_code == 200:   
                         try:
                             print(f'{datetime.now()} Outputing stream {path} res code {res_code}')
@@ -128,55 +123,57 @@ class NRGStreamApi:
                             conn.close()
 
                         except Exception as e:
-                            print(str(e))            
+                            print(e)
                             self.releaseToken()
-                            return None  
+                            return None
                     else:
-                        print(str(res_code) + " - " + str(res.reason) + " - " + str(res.read().decode('utf-8')))
-                    
-                self.releaseToken()   
+                        print(
+                            f"{str(res_code)} - {str(res.reason)} - "
+                            + str(res.read().decode('utf-8'))
+                        )
+
+                self.releaseToken()
                 # Wait 1 second before next request
                 time.sleep(1)
-            return stream_data        
+            return stream_data
         except Exception as e:
-            print(str(e))    
+            print(e)
             self.releaseToken()
             return None
         
         
     def StreamDataOptions(self, streamId, dataFormat='csv'):
-        try:      
-            DataFormats = {}
-            DataFormats['csv'] = 'text/csv'
-            DataFormats['json'] = 'Application/json'
+        try:  
+            DataFormats = {'csv': 'text/csv', 'json': 'Application/json'}
             resultSet = {}
             for streamId in streamIds:
-                # Get an access token    
+                # Get an access token
                 if streamId not in resultSet:
-                    self.getToken()                        
-                    if self.isTokenValid():                 
+                    self.getToken()
+                    if self.isTokenValid(): 
                         # Setup the path for data request.
-                        path = f'/api/StreamDataOptions/{streamId}'                        
+                        path = f'/api/StreamDataOptions/{streamId}'
                         # Create request header
-                        headers = {}     
-                        headers['Accept'] = DataFormats[dataFormat]                                   
-                        headers['Authorization'] = f'Bearer {self.accessToken}'
+                        headers = {
+                            'Accept': DataFormats[dataFormat],
+                            'Authorization': f'Bearer {self.accessToken}',
+                        }
                         # Connect to API server
                         conn = http.client.HTTPSConnection(self.server)
                         conn.request('GET', path, None, headers)
                         res = conn.getresponse()
-                        self.releaseToken()       
+                        self.releaseToken()
                         if dataFormat == 'csv':
                             resultSet[streamId] = res.read().decode('utf-8').replace('\r\n','\n') 
                         elif dataFormat == 'json':
-                            resultSet[streamId] = json.dumps(json.loads(res.read().decode('utf-8')), indent=2, sort_keys=False)                            
-                    time.sleep(1)                        
-            return resultSet            
+                            resultSet[streamId] = json.dumps(json.loads(res.read().decode('utf-8')), indent=2, sort_keys=False)
+                    time.sleep(1)
+            return resultSet
         except Exception as e:
-            print(str(e))    
+            print(e)
             self.releaseToken()
             return None          
-        
+
         except Exception as e:            
             self.releaseToken()                        
             return str(e)        
